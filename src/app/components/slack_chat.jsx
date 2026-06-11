@@ -282,6 +282,7 @@ export default function SlackChat() {
 									borderRadius: 10,
 									fontSize: 14,
 									outline: "none",
+									color: "#000",
 								}}
 							/>
 							<button
