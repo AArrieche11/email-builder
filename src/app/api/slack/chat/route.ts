@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchDmMessages, postDmMessage } from "@/lib/slack/client";
+import { respondToUserMessage } from "@/lib/slack/genaibot-handler";
 import { attachSessionCookie, getSession } from "@/lib/slack/session";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +58,15 @@ export async function POST(request: Request) {
 			text,
 			session.threadTs,
 		);
+
+		// Los mensajes web los publica el bot → Slack no dispara message.im al bot.
+		// Procesamos la respuesta aquí directamente.
+		await respondToUserMessage({
+			slackUserId: session.slackUserId,
+			channelId: result.channelId,
+			threadTs: result.threadTs,
+			text,
+		});
 
 		const response = NextResponse.json({
 			ok: true,

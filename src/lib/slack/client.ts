@@ -43,7 +43,7 @@ export type ChatMessage = {
 	isFromBot: boolean;
 };
 
-const WEB_MESSAGE_PREFIX = "[Web]";
+export const WEB_MESSAGE_PREFIX = "[Web]";
 
 function mapSlackMessages(
 	messages: Array<{ text?: string; ts?: string; bot_id?: string; user?: string; subtype?: string }>,
