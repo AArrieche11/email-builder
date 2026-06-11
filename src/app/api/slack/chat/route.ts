@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchDmMessages, postDmMessage } from "@/lib/slack/client";
-import { getSession } from "@/lib/slack/session";
+import { attachSessionCookie, getSession } from "@/lib/slack/session";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +20,17 @@ export async function GET() {
 		const session = await getSession();
 		if (!session) return unauthorized();
 
-		const messages = await fetchDmMessages(session.slackUserId);
+		const { messages, threadTs } = await fetchDmMessages(
+			session.slackUserId,
+			session.threadTs,
+		);
 
-		return NextResponse.json({ ok: true, messages });
+		const response = NextResponse.json({ ok: true, messages });
+		return attachSessionCookie(
+			response,
+			session.slackUserId,
+			threadTs ?? session.threadTs,
+		);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "Unknown error";
 		return NextResponse.json({ ok: false, error: message }, { status: 500 });
@@ -44,12 +52,19 @@ export async function POST(request: Request) {
 			);
 		}
 
-		const result = await postDmMessage(session.slackUserId, text);
+		const result = await postDmMessage(
+			session.slackUserId,
+			text,
+			session.threadTs,
+		);
 
-		return NextResponse.json({
+		const response = NextResponse.json({
 			ok: true,
 			ts: result.ts,
+			threadTs: result.threadTs,
 		});
+
+		return attachSessionCookie(response, session.slackUserId, result.threadTs);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "Unknown error";
 		return NextResponse.json({ ok: false, error: message }, { status: 500 });

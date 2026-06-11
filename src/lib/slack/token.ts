@@ -6,17 +6,25 @@ const TOKEN_SEP = ".";
 type TokenPayload = {
 	slackUserId: string;
 	exp: number;
+	threadTs?: string;
 };
 
 function sign(data: string): string {
 	return createHmac("sha256", getMagicLinkSecret()).update(data).digest("base64url");
 }
 
-export function createSignedToken(slackUserId: string, ttlSeconds: number): string {
+function encodePayload(payload: TokenPayload): string {
+	return Buffer.from(JSON.stringify(payload)).toString("base64url");
+}
+
+export function createSignedToken(
+	slackUserId: string,
+	ttlSeconds: number,
+	threadTs?: string,
+): string {
 	const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
-	const payloadB64 = Buffer.from(JSON.stringify({ slackUserId, exp } satisfies TokenPayload))
-		.toString("base64url");
-	return `${payloadB64}${TOKEN_SEP}${sign(payloadB64)}`;
+	const payload: TokenPayload = { slackUserId, exp, ...(threadTs ? { threadTs } : {}) };
+	return `${encodePayload(payload)}${TOKEN_SEP}${sign(encodePayload(payload))}`;
 }
 
 /** Enlace mágico de corta duración (1 hora) */
@@ -25,11 +33,13 @@ export function createMagicLinkToken(slackUserId: string): string {
 }
 
 /** Cookie de sesión de larga duración (30 días) */
-export function createSessionToken(slackUserId: string): string {
-	return createSignedToken(slackUserId, 60 * 60 * 24 * 30);
+export function createSessionToken(slackUserId: string, threadTs?: string): string {
+	return createSignedToken(slackUserId, 60 * 60 * 24 * 30, threadTs);
 }
 
-export function verifyToken(token: string): { slackUserId: string } | null {
+export function verifyToken(
+	token: string,
+): { slackUserId: string; threadTs?: string } | null {
 	const sepIndex = token.lastIndexOf(TOKEN_SEP);
 	if (sepIndex === -1) return null;
 
@@ -52,7 +62,10 @@ export function verifyToken(token: string): { slackUserId: string } | null {
 		if (!payload.slackUserId || typeof payload.exp !== "number") return null;
 		if (payload.exp < Math.floor(Date.now() / 1000)) return null;
 
-		return { slackUserId: payload.slackUserId };
+		return {
+			slackUserId: payload.slackUserId,
+			threadTs: payload.threadTs,
+		};
 	} catch {
 		return null;
 	}

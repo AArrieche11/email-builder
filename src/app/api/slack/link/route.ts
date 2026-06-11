@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createSessionToken, verifyToken } from "@/lib/slack/token";
-import { SESSION_COOKIE } from "@/lib/slack/session";
+import { verifyToken } from "@/lib/slack/token";
+import { attachSessionCookie } from "@/lib/slack/session";
 
 export const dynamic = "force-dynamic";
 
@@ -27,13 +27,5 @@ export async function GET(request: Request) {
 	redirectUrl.searchParams.set("chat", "open");
 
 	const response = NextResponse.redirect(redirectUrl);
-	response.cookies.set(SESSION_COOKIE, createSessionToken(session.slackUserId), {
-		httpOnly: true,
-		secure: process.env.NODE_ENV === "production",
-		sameSite: "lax",
-		maxAge: 60 * 60 * 24 * 30,
-		path: "/",
-	});
-
-	return response;
+	return attachSessionCookie(response, session.slackUserId);
 }

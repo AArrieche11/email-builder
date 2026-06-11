@@ -22,6 +22,10 @@ function shouldSendMagicLink(text: string): boolean {
 	return LINK_KEYWORDS.some((keyword) => normalized.includes(keyword));
 }
 
+function getThreadTs(message: { ts?: string; thread_ts?: string }): string | undefined {
+	return message.thread_ts ?? message.ts;
+}
+
 function getApp(): App {
 	if (!app) {
 		const slackReceiver = getReceiver();
@@ -40,19 +44,21 @@ function getApp(): App {
 
 			const userId = message.user;
 			const text = "text" in message ? message.text ?? "" : "";
+			const threadTs = getThreadTs(message);
 
-			if (!userId) return;
+			if (!userId || !threadTs) return;
 
-			logger.info("GENAIBOT DM received", { userId, channel: message.channel });
+			logger.info("GENAIBOT DM received", { userId, channel: message.channel, threadTs });
 
-			const history = await client.conversations.history({
+			const history = await client.conversations.replies({
 				channel: message.channel,
-				limit: 5,
+				ts: threadTs,
+				limit: 10,
 			});
 
 			const userMessageCount =
 				history.messages?.filter(
-					(entry) => entry.user === userId && !entry.bot_id && !entry.subtype,
+					(entry) => entry.user === userId && !entry.bot_id,
 				).length ?? 0;
 
 			const isFirstMessage = userMessageCount <= 1;
@@ -63,6 +69,7 @@ function getApp(): App {
 
 				if (isFirstMessage) {
 					await say({
+						thread_ts: threadTs,
 						text: [
 							"¡Hola! Soy *GENAIBOT*, tu asistente para construir textos de email.",
 							"Contame qué necesitás y te ayudo con copys, asuntos y bloques de contenido.",
@@ -73,9 +80,10 @@ function getApp(): App {
 					return;
 				}
 
-				await say(
-					`Abrí el Email Builder con tu conversación privada:\n${magicLink}`,
-				);
+				await say({
+					thread_ts: threadTs,
+					text: `Abrí el Email Builder con tu conversación privada:\n${magicLink}`,
+				});
 			}
 		});
 	}
