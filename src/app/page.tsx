@@ -1,5 +1,5 @@
-import EmailBuilder from "./components/email_builder";
-import SlackChat from "./components/slack_chat";
+import { EmailBuilder } from "@/modules/email-builder";
+import { SlackChat } from "@/modules/slack/presentation";
 
 export default function Home() {
 	return (

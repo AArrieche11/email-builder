@@ -1,5 +1,7 @@
 import { WebClient } from "@slack/web-api";
-import { getSlackBotToken } from "./env";
+import { WEB_MESSAGE_PREFIX } from "../domain/constants";
+import type { ChatMessage } from "../domain/types";
+import { getSlackBotToken } from "./config";
 
 let webClient: WebClient | null = null;
 let botUserId: string | null = null;
@@ -35,15 +37,6 @@ export async function openDmChannel(slackUserId: string): Promise<string> {
 
 	return result.channel.id;
 }
-
-export type ChatMessage = {
-	id: string;
-	text: string;
-	ts: string;
-	isFromBot: boolean;
-};
-
-export const WEB_MESSAGE_PREFIX = "[Web]";
 
 function mapSlackMessages(
 	messages: Array<{ text?: string; ts?: string; bot_id?: string; user?: string; subtype?: string }>,

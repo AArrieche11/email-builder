@@ -1,7 +1,7 @@
 import { App } from "@slack/bolt";
 import { VercelReceiver } from "@vercel/slack-bolt";
-import { getSlackBotToken, getSlackSigningSecret } from "./env";
-import { respondToUserMessage } from "./genaibot-handler";
+import { respondToUserMessage } from "../application/genaibot.service";
+import { getSlackBotToken, getSlackSigningSecret } from "./config";
 
 let receiver: VercelReceiver | null = null;
 let app: App | null = null;

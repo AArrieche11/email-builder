@@ -1,72 +1,33 @@
 import { NextResponse } from "next/server";
-import { fetchDmMessages, postDmMessage } from "@/lib/slack/client";
-import { respondToUserMessage } from "@/lib/slack/genaibot-handler";
-import { attachSessionCookie, getSession } from "@/lib/slack/session";
+import {
+	getChatMessages,
+	requireSession,
+	sendChatMessage,
+	withSessionCookie,
+} from "@/modules/slack";
+import { toErrorResponse } from "@/shared/kernel";
 
 export const dynamic = "force-dynamic";
 
-function unauthorized() {
-	return NextResponse.json(
-		{
-			ok: false,
-			error: "Sesión no válida. Abrí el enlace que GENAIBOT te envió en Slack.",
-			code: "UNAUTHORIZED",
-		},
-		{ status: 401 },
-	);
-}
-
 export async function GET() {
 	try {
-		const session = await getSession();
-		if (!session) return unauthorized();
-
-		const { messages, threadTs } = await fetchDmMessages(
-			session.slackUserId,
-			session.threadTs,
-		);
+		const session = await requireSession();
+		const { messages, threadTs } = await getChatMessages(session);
 
 		const response = NextResponse.json({ ok: true, messages });
-		return attachSessionCookie(
-			response,
-			session.slackUserId,
-			threadTs ?? session.threadTs,
-		);
+		return withSessionCookie(response, session.slackUserId, threadTs);
 	} catch (error) {
-		const message = error instanceof Error ? error.message : "Unknown error";
-		return NextResponse.json({ ok: false, error: message }, { status: 500 });
+		return toErrorResponse(error);
 	}
 }
 
 export async function POST(request: Request) {
 	try {
-		const session = await getSession();
-		if (!session) return unauthorized();
-
+		const session = await requireSession();
 		const body = await request.json();
-		const text = typeof body.text === "string" ? body.text.trim() : "";
+		const text = typeof body.text === "string" ? body.text : "";
 
-		if (!text) {
-			return NextResponse.json(
-				{ ok: false, error: "text is required" },
-				{ status: 400 },
-			);
-		}
-
-		const result = await postDmMessage(
-			session.slackUserId,
-			text,
-			session.threadTs,
-		);
-
-		// Los mensajes web los publica el bot → Slack no dispara message.im al bot.
-		// Procesamos la respuesta aquí directamente.
-		await respondToUserMessage({
-			slackUserId: session.slackUserId,
-			channelId: result.channelId,
-			threadTs: result.threadTs,
-			text,
-		});
+		const result = await sendChatMessage(session, text);
 
 		const response = NextResponse.json({
 			ok: true,
@@ -74,9 +35,8 @@ export async function POST(request: Request) {
 			threadTs: result.threadTs,
 		});
 
-		return attachSessionCookie(response, session.slackUserId, result.threadTs);
+		return withSessionCookie(response, session.slackUserId, result.threadTs);
 	} catch (error) {
-		const message = error instanceof Error ? error.message : "Unknown error";
-		return NextResponse.json({ ok: false, error: message }, { status: 500 });
+		return toErrorResponse(error);
 	}
 }

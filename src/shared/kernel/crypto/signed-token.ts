@@ -1,5 +1,4 @@
 import { createHmac, timingSafeEqual } from "crypto";
-import { getMagicLinkSecret } from "./env";
 
 const TOKEN_SEP = ".";
 
@@ -9,35 +8,20 @@ type TokenPayload = {
 	threadTs?: string;
 };
 
-function sign(data: string): string {
-	return createHmac("sha256", getMagicLinkSecret()).update(data).digest("base64url");
-}
-
-function encodePayload(payload: TokenPayload): string {
-	return Buffer.from(JSON.stringify(payload)).toString("base64url");
-}
-
 export function createSignedToken(
+	secret: string,
 	slackUserId: string,
 	ttlSeconds: number,
 	threadTs?: string,
 ): string {
 	const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
 	const payload: TokenPayload = { slackUserId, exp, ...(threadTs ? { threadTs } : {}) };
-	return `${encodePayload(payload)}${TOKEN_SEP}${sign(encodePayload(payload))}`;
+	const payloadB64 = encodePayload(payload);
+	return `${payloadB64}${TOKEN_SEP}${sign(secret, payloadB64)}`;
 }
 
-/** Enlace mágico de corta duración (1 hora) */
-export function createMagicLinkToken(slackUserId: string): string {
-	return createSignedToken(slackUserId, 60 * 60);
-}
-
-/** Cookie de sesión de larga duración (30 días) */
-export function createSessionToken(slackUserId: string, threadTs?: string): string {
-	return createSignedToken(slackUserId, 60 * 60 * 24 * 30, threadTs);
-}
-
-export function verifyToken(
+export function verifySignedToken(
+	secret: string,
 	token: string,
 ): { slackUserId: string; threadTs?: string } | null {
 	const sepIndex = token.lastIndexOf(TOKEN_SEP);
@@ -47,7 +31,7 @@ export function verifyToken(
 	const signature = token.slice(sepIndex + 1);
 	if (!payloadB64 || !signature) return null;
 
-	const expected = sign(payloadB64);
+	const expected = sign(secret, payloadB64);
 	const sigBuffer = Buffer.from(signature);
 	const expectedBuffer = Buffer.from(expected);
 
@@ -69,4 +53,12 @@ export function verifyToken(
 	} catch {
 		return null;
 	}
+}
+
+function sign(secret: string, data: string): string {
+	return createHmac("sha256", secret).update(data).digest("base64url");
+}
+
+function encodePayload(payload: TokenPayload): string {
+	return Buffer.from(JSON.stringify(payload)).toString("base64url");
 }

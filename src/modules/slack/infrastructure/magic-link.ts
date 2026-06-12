@@ -1,4 +1,4 @@
-import { getAppBaseUrl } from "./env";
+import { getAppBaseUrl } from "./config";
 import { createMagicLinkToken } from "./token";
 
 export function buildMagicLink(slackUserId: string): string {

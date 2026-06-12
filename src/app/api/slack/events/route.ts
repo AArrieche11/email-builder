@@ -1,5 +1,5 @@
 import { createHandler, type VercelHandler } from "@vercel/slack-bolt";
-import { getApp, getReceiver } from "@/lib/slack/bolt-app";
+import { getApp, getReceiver } from "@/modules/slack";
 
 export const dynamic = "force-dynamic";
 

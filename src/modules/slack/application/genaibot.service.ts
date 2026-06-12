@@ -1,9 +1,6 @@
-import { getSlackWebClient, WEB_MESSAGE_PREFIX } from "./client";
-import { buildMagicLink } from "./magic-link";
-
-export { WEB_MESSAGE_PREFIX };
-
-const LINK_KEYWORDS = ["web", "builder", "enlace", "link", "email builder"];
+import { LINK_KEYWORDS, WEB_MESSAGE_PREFIX } from "../domain/constants";
+import { buildMagicLink } from "../infrastructure/magic-link";
+import { getSlackWebClient } from "../infrastructure/slack-client";
 
 function shouldSendMagicLink(text: string): boolean {
 	const normalized = text.toLowerCase();

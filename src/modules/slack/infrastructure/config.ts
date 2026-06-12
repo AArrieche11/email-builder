@@ -1,10 +1,4 @@
-function requireEnv(name: string): string {
-	const value = process.env[name];
-	if (!value) {
-		throw new Error(`Missing required environment variable: ${name}`);
-	}
-	return value;
-}
+import { requireEnv } from "@/shared/kernel";
 
 export function getSlackBotToken(): string {
 	return requireEnv("SLACK_BOT_TOKEN");

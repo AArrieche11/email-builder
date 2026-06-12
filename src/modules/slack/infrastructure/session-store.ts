@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { SESSION_COOKIE } from "../domain/constants";
+import type { Session } from "../domain/types";
 import { createSessionToken, verifyToken } from "./token";
-
-export const SESSION_COOKIE = "genaibot_session";
 
 const SESSION_COOKIE_OPTIONS = {
 	httpOnly: true,
@@ -10,11 +10,6 @@ const SESSION_COOKIE_OPTIONS = {
 	sameSite: "lax" as const,
 	maxAge: 60 * 60 * 24 * 30,
 	path: "/",
-};
-
-export type Session = {
-	slackUserId: string;
-	threadTs?: string;
 };
 
 export async function getSession(): Promise<Session | null> {
