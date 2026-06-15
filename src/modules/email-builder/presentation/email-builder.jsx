@@ -1443,7 +1443,7 @@ OUTPUT: Devuelve EXCLUSIVAMENTE un objeto JSON válido (sin markdown, sin backti
 						color: "#fff", fontWeight: 700, fontSize: 14, flexShrink: 0,
 					}}>M</div>
 					<div style={{ flex: 1, minWidth: 0 }}>
-						<div style={{ fontSize: 15, fontWeight: 600 }}>Constructor de mailings</div>
+						<div style={{ fontSize: 15, fontWeight: 600 }}>Desconstructor de mailings</div>
 						<div style={{ fontSize: 12, color: "#8b959e" }}>{blocks.length} {blocks.length === 1 ? "bloque" : "bloques"} · auto-guardado</div>
 					</div>
 					<input
