@@ -659,6 +659,24 @@ export function parseJsonFromBotMessage(text) {
 	return JSON.parse(cleaned);
 }
 
+export function findLastBotMailingMessage(messages) {
+	const botMessages = [...(messages ?? [])]
+		.filter((m) => m.isFromBot)
+		.sort((a, b) => Number(b.ts) - Number(a.ts));
+
+	for (const message of botMessages) {
+		try {
+			const payload = parseJsonFromBotMessage(message.text);
+			if (payload?.blocks && Array.isArray(payload.blocks)) {
+				return message;
+			}
+		} catch {
+			// no es JSON de mailing válido
+		}
+	}
+	return null;
+}
+
 export function importMailingJson(payload) {
 	if (!payload || !Array.isArray(payload.blocks)) {
 		throw new Error("JSON inválido: se esperaba { name, blocks[] }");
@@ -1323,6 +1341,8 @@ export default function EmailBuilder() {
 	const [hydrated, setHydrated] = useState(false);
 	const [translating, setTranslating] = useState(false);
 	const [translateError, setTranslateError] = useState(null);
+	const [importing, setImporting] = useState(false);
+	const [isSlackAuthed, setIsSlackAuthed] = useState(false);
 	const [toast, setToast] = useState(null);
 	const addMenuRef = useRef(null);
 
@@ -1362,6 +1382,22 @@ export default function EmailBuilder() {
 			} catch { /* ignore */ }
 			finally {
 				if (!cancelled) setHydrated(true);
+			}
+		})();
+		return () => { cancelled = true; };
+	}, []);
+
+	useEffect(() => {
+		let cancelled = false;
+		(async () => {
+			try {
+				const response = await fetch("/api/slack/session");
+				const data = await response.json();
+				if (!cancelled) {
+					setIsSlackAuthed(Boolean(data.ok && data.authenticated));
+				}
+			} catch {
+				if (!cancelled) setIsSlackAuthed(false);
 			}
 		})();
 		return () => { cancelled = true; };
@@ -1450,18 +1486,52 @@ export default function EmailBuilder() {
 		}
 	};
 
+	const applyImportedMailing = (text) => {
+		const payload = parseJsonFromBotMessage(text);
+		const { mailName: importedName, blocks: importedBlocks } = importMailingJson(payload);
+		setMailName(importedName);
+		setBlocks(importedBlocks);
+		setSelectedId(null);
+		setTranslateError(null);
+		showToast(`Mailing "${importedName}" importado (${importedBlocks.length} bloques)`);
+	};
+
 	const simulateGenaibotResponse = () => {
 		try {
-			const payload = parseJsonFromBotMessage(SIMULATED_GENAIBOT_PIX_JSON);
-			const { mailName: importedName, blocks: importedBlocks } = importMailingJson(payload);
-			setMailName(importedName);
-			setBlocks(importedBlocks);
-			setSelectedId(null);
-			setTranslateError(null);
-			showToast(`Mailing "${importedName}" importado (${importedBlocks.length} bloques)`);
+			applyImportedMailing(SIMULATED_GENAIBOT_PIX_JSON);
 		} catch (err) {
 			console.error("Import error:", err);
 			showToast(err.message || "Error al importar JSON", "error");
+		}
+	};
+
+	const importFromGenaibot = async () => {
+		setImporting(true);
+		try {
+			const response = await fetch("/api/slack/chat");
+			const data = await response.json();
+
+			if (response.status === 401) {
+				setIsSlackAuthed(false);
+				throw new Error("Abrí el enlace que GENAIBOT te envió en Slack.");
+			}
+			if (!response.ok || !data.ok) {
+				throw new Error(data.error ?? "No se pudieron cargar los mensajes");
+			}
+
+			const match = findLastBotMailingMessage(data.messages);
+			if (!match) {
+				throw new Error(
+					"No hay un JSON de mailing en las respuestas de GENAIBOT. Pedile que genere el mail en formato JSON.",
+				);
+			}
+
+			applyImportedMailing(match.text);
+		} catch (err) {
+			console.error("Import from GENAIBOT error:", err);
+			showToast(err.message || "Error al importar desde GENAIBOT", "error");
+		} finally {
+			setImporting(false);
 		}
 	};
 
@@ -1665,6 +1735,27 @@ OUTPUT: Devuelve EXCLUSIVAMENTE un objeto JSON válido (sin markdown, sin backti
 							<><Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> Traduciendo...</>
 						) : (
 							<><Languages size={13} /> Traducir ES → EN/PT</>
+						)}
+					</button>
+
+					<button
+						onClick={importFromGenaibot}
+						disabled={!isSlackAuthed || importing}
+						style={{
+							padding: "8px 12px", border: "1px solid #C4B5FD", borderRadius: 8,
+							background: "#F5F3FF", cursor: (!isSlackAuthed || importing) ? "not-allowed" : "pointer",
+							fontSize: 13, fontWeight: 500, color: "#5B21B6",
+							display: "flex", alignItems: "center", gap: 6,
+							opacity: (!isSlackAuthed || importing) ? 0.6 : 1,
+						}}
+						title={isSlackAuthed
+							? "Importa el último JSON de mailing que GENAIBOT envió en el chat"
+							: "Abrí el enlace que GENAIBOT te envió en Slack para importar"}
+					>
+						{importing ? (
+							<><Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> Importando...</>
+						) : (
+							<><MessageSquare size={13} /> Importar desde GENAIBOT</>
 						)}
 					</button>
 
