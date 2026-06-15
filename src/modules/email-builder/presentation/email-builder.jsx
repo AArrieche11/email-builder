@@ -640,6 +640,129 @@ const STARTER_BLOCKS = () => [
 	defaultBlock("closing"),
 ];
 
+const splitParagraphContent = (content) => {
+	const greeting = {};
+	const body = {};
+	LANG_CODES.forEach((lang) => {
+		const lines = (content?.[lang] ?? "").split("\n");
+		greeting[lang] = (lines[0] ?? "").trim();
+		body[lang] = lines.slice(1).join("\n").trim();
+	});
+	return { greeting, body };
+};
+
+export function parseJsonFromBotMessage(text) {
+	const cleaned = (text ?? "")
+		.replace(/^```(?:json)?\s*/i, "")
+		.replace(/\s*```\s*$/i, "")
+		.trim();
+	return JSON.parse(cleaned);
+}
+
+export function importMailingJson(payload) {
+	if (!payload || !Array.isArray(payload.blocks)) {
+		throw new Error("JSON inválido: se esperaba { name, blocks[] }");
+	}
+
+	const blocks = payload.blocks.map((block) => {
+		const id = newId();
+		switch (block.type) {
+			case "title":
+				return { id, type: "title", text: ensureI18n(block.content) };
+			case "paragraph": {
+				const { greeting, body } = splitParagraphContent(block.content);
+				return { id, type: "paragraph", greeting, body };
+			}
+			case "callout":
+				return {
+					id,
+					type: "callout",
+					items: [{
+						id: newId("i"),
+						kind: "text",
+						text: ensureI18n(block.content),
+					}],
+				};
+			case "code_callout":
+				return {
+					id,
+					type: "code_callout",
+					code: ensureI18n(block.code ?? block.content),
+					subtitle: ensureI18n(block.subtitle),
+				};
+			case "cta":
+				return {
+					id,
+					type: "cta",
+					text: ensureI18n(block.content),
+					url: block.href ?? block.url ?? "https://linkto.midi.io/openApp",
+				};
+			case "closing": {
+				if (block.content || block.signature) {
+					return {
+						id,
+						type: "closing",
+						body: ensureI18n(block.content ?? block.body),
+						signature: ensureI18n(block.signature ?? MIDI_GLOSSARY.signatures[0]),
+					};
+				}
+				return defaultBlock("closing");
+			}
+			case "spacer":
+				return { id, type: "spacer" };
+			default:
+				throw new Error(`Tipo de bloque desconocido: ${block.type}`);
+		}
+	});
+
+	return {
+		mailName: payload.name ?? "nuevo_mailing",
+		blocks,
+	};
+}
+
+const SIMULATED_GENAIBOT_PIX_JSON = `\`\`\`json
+{
+  "name": "053_PIX_RECEIVED",
+  "blocks": [
+    {
+      "type": "title",
+      "content": {
+        "es": "Recibiste un PIX por \${value}",
+        "en": "You received a PIX of \${value}",
+        "pt": "Você recebeu um PIX de \${value}"
+      }
+    },
+    {
+      "type": "paragraph",
+      "content": {
+        "es": "Hola \${nameUser},\\nRecibiste \${value} desde \${senderName}.",
+        "en": "Hi \${nameUser},\\nYou received \${value} from \${senderName}.",
+        "pt": "Olá \${nameUser},\\nVocê recebeu \${value} de \${senderName}."
+      }
+    },
+    {
+      "type": "callout",
+      "content": {
+        "es": "Concepto: \${concept}",
+        "en": "Reference: \${concept}",
+        "pt": "Descrição: \${concept}"
+      }
+    },
+    {
+      "type": "cta",
+      "content": {
+        "es": "Abrir Midi",
+        "en": "Open Midi",
+        "pt": "Abrir Midi"
+      },
+      "href": "https://linkto.midi.io/openApp"
+    },
+    { "type": "closing" }
+  ]
+}
+\`\`\``;
+
 const BLOCK_META = {
 	title: { label: "Título", icon: Type, color: "#7646FF" },
 	paragraph: { label: "Párrafo", icon: AlignLeft, color: "#1a1c1f" },
@@ -1327,6 +1450,21 @@ export default function EmailBuilder() {
 		}
 	};
 
+	const simulateGenaibotResponse = () => {
+		try {
+			const payload = parseJsonFromBotMessage(SIMULATED_GENAIBOT_PIX_JSON);
+			const { mailName: importedName, blocks: importedBlocks } = importMailingJson(payload);
+			setMailName(importedName);
+			setBlocks(importedBlocks);
+			setSelectedId(null);
+			setTranslateError(null);
+			showToast(`Mailing "${importedName}" importado (${importedBlocks.length} bloques)`);
+		} catch (err) {
+			console.error("Import error:", err);
+			showToast(err.message || "Error al importar JSON", "error");
+		}
+	};
+
 	const translate = async () => {
 		setTranslating(true);
 		setTranslateError(null);
@@ -1529,6 +1667,20 @@ OUTPUT: Devuelve EXCLUSIVAMENTE un objeto JSON válido (sin markdown, sin backti
 							<><Languages size={13} /> Traducir ES → EN/PT</>
 						)}
 					</button>
+
+					{process.env.NODE_ENV === "development" && (
+						<button
+							onClick={simulateGenaibotResponse}
+							style={{
+								padding: "8px 12px", border: "1px dashed #C4B5FD", borderRadius: 8,
+								background: "#F5F3FF", cursor: "pointer", fontSize: 13, fontWeight: 500,
+								color: "#5B21B6", display: "flex", alignItems: "center", gap: 6,
+							}}
+							title="Dev: importa el JSON de ejemplo 053_PIX_RECEIVED como si viniera de GENAIBOT"
+						>
+							<MessageSquare size={13} /> Simular GENAIBOT
+						</button>
+					)}
 
 					<button
 						onClick={reset}
